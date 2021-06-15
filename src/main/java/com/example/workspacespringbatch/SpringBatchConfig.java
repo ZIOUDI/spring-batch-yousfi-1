@@ -14,11 +14,15 @@ import org.springframework.batch.item.file.LineMapper;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
+import org.springframework.batch.item.support.CompositeItemProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
+
+import java.util.ArrayList;
+import java.util.List;
 
     /*
         L'objectif du Job :
@@ -34,20 +38,31 @@ public class SpringBatchConfig {
     @Autowired private StepBuilderFactory stepBuilderFactory;
     @Autowired private ItemReader<BankTransaction> bankTransactionItemReader;
     @Autowired private ItemWriter<BankTransaction>  bankTransactionItemWriter;
-    @Autowired private ItemProcessor<BankTransaction,BankTransaction> bankTransactionBankTransactionItemProcessor;
+   // @Autowired private ItemProcessor<BankTransaction,BankTransaction> bankTransactionBankTransactionItemProcessor;
 
     @Bean
     public Job bankJob(){
         Step step1 = stepBuilderFactory.get("step-load-data")
                 .<BankTransaction,BankTransaction>chunk(100)
                 .reader(bankTransactionItemReader)
-                .processor(bankTransactionBankTransactionItemProcessor)
+                .processor(compositeItemProcessor())
                 .writer(bankTransactionItemWriter)
                 .build();
 
         return jobBuilderFactory.get("bank-data-loader-job")
                 .start(step1)
                 .build();
+    }
+
+    @Bean
+    public ItemProcessor<? super BankTransaction,? extends BankTransaction> compositeItemProcessor() {
+        //creer le composite
+        List<ItemProcessor<BankTransaction , BankTransaction>> itemProcessorList = new ArrayList<>();
+        itemProcessorList.add(bankItemProcessor1());
+        itemProcessorList.add(bankItemProcessor2());
+        CompositeItemProcessor<BankTransaction , BankTransaction> bankCompositeItemProcessor = new CompositeItemProcessor<>();
+        bankCompositeItemProcessor.setDelegates(itemProcessorList);
+        return  bankCompositeItemProcessor;
     }
 
     @Bean // un bean qui dervait etre creer au demarrage de l'application
@@ -78,14 +93,13 @@ public class SpringBatchConfig {
         return lineMapper;
     }
 
-  /*  @Bean
-    public  ItemProcessor<BankTransaction , BankTransaction> itemProcessor(){
-        return new ItemProcessor<BankTransaction, BankTransaction>() {
-            @Override
-            public BankTransaction process(BankTransaction bankTransaction) throws Exception {
-                // dateString --> date (Date) ==> je la retourne
-                return null;
-            }
-        }
-    } */
+    @Bean // cette methode remplace l'@ Component de BankTransactionItemProcessor
+    BankTransactionItemProcessor bankItemProcessor1() {
+        return  new BankTransactionItemProcessor();
+    }
+    @Bean // cette methode remplace l'@ Component de BankTransactionItemAnalyticsProcessor
+    BankTransactionItemAnalyticsProcessor  bankItemProcessor2() {
+        return  new BankTransactionItemAnalyticsProcessor();
+    }
+
 }
